@@ -7,7 +7,7 @@ const LIB_FILE: &str = "asm/libcontext.a";
 
 fn main() {
     Command::new("cc")
-        .args(&[ASM_FILE, "-c", "-fPIC", "-o"])
+        .args(&[ASM_FILE, "-c", "-fPIC","-ggdb", "-o"])
         .arg(O_FILE)
         .status()
         .unwrap();
