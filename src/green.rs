@@ -148,3 +148,33 @@ pub fn schedule() {
         rm_unused_stack();
     }
 }
+
+#[no_mangle]
+pub extern "C" fn entry_point() {
+    unsafe {
+        // call specified entry function
+        let ctx = CONTEXTS.front().unwrap();
+        ((**ctx).entry)();
+
+        let ctx = CONTEXTS.pop_front().unwrap();
+
+        (*ID).remove(&ctx.id);
+
+        // set pointer to unused stack to the global variable
+        UNUSED_STACK = ((*ctx).stack, (*ctx).stack_layout);
+
+        match CONTEXTS.front() {
+            Some(c) => {
+                // context switch to the next thread
+                switch_context((**c).get_regs());
+            }
+            None => {
+                // if there is no thread, context switch to main thread
+                if let Some(c) = &CTX_MAIN {
+                    switch_context(&**c as *const Registers);
+                }
+            }
+        }
+    }
+    panic!("entry_point");
+}
