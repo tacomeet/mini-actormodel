@@ -223,3 +223,18 @@ pub fn spwan_from_main(func: Entry, stack_size: usize) {
         }
     }
 }
+
+unsafe fn rm_unused_stack() {
+    if UNUSED_STACK.0 != ptr::null_mut() {
+        // remove guard page
+        mprotect(
+            UNUSED_STACK.0 as *mut c_void,
+            PAGE_SIZE,
+            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+        )
+        .unwrap();
+        dealloc(UNUSED_STACK.0, UNUSED_STACK.1);
+        // prevent double free
+        UNUSED_STACK = (ptr::null_mut(), Layout::new::<u8>());
+    }
+}
