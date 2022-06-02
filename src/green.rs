@@ -112,3 +112,14 @@ fn get_id() -> u64 {
         }
     }
 }
+
+pub fn spawn(func: Entry, stack_size: usize) -> u64 {
+    unsafe {
+        // create new thread id
+        let id = get_id();
+        // create context and add it to the queue
+        CONTEXTS.push_back(Box::new(Context::new(func, stack_size, id)));
+        schedule();
+        id
+    }
+}
