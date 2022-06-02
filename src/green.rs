@@ -16,7 +16,7 @@ static mut CONTEXTS: LinkedList<Box<Context>> = LinkedList::new();
 // スレッドIDの集合
 static mut ID: *mut HashSet<u64> = ptr::null_mut();
 
-// message queue
+// message queue ('mail box' in Erlang)
 static mut MESSAGES: *mut MappedList<u64> = ptr::null_mut();
 
 // waiting thread set
@@ -69,9 +69,38 @@ struct MappedList<T> {
 }
 
 impl<T> MappedList<T> {
+    fn new() -> Self {
+        MappedList {
+            map: HashMap::new(),
+        }
+    }
 
+    fn push_back(&mut self, key: u64, value: T) {
+        if let Some(list) = self.map.get_mut(&key) {
+            list.push_back(value);
+        } else {
+            let mut list = LinkedList::new();
+            list.push_back(value);
+            self.map.insert(key, list);
+        }
+    }
+
+    fn popo_front(&mut self, key: u64) -> Option<T> {
+        if let Some(list) = self.map.get_mut(&key) {
+            let val = list.pop_front();
+            if list.is_empty() {
+                self.map.remove(&key);
+            }
+            val
+        } else {
+            None
+        }
+    }
+
+    fn clear(&mut self) {
+        self.map.clear();
+    }
 }
-
 
 struct Context {
     regs: Registers,
@@ -96,7 +125,7 @@ impl Context {
         // スタック領域の確保
         let layout = Layout::from_size_align(stack_size, PAGE_SIZE).unwrap();
         let stack = unsafe { alloc(layout) };
-        
+
         // スタック用のガードページ設定
         unsafe { mprotect(stack as *mut c_void, PAGE_SIZE, ProtFlags::PROT_NONE).unwrap() };
         // レジスタの初期化（stackは高アドレス -> 低アドレス）
