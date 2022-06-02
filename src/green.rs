@@ -280,3 +280,15 @@ unsafe fn rm_unused_stack() {
         UNUSED_STACK = (ptr::null_mut(), Layout::new::<u8>());
     }
 }
+
+// key: thread ID
+pub fn send(key: u64, msg: u64) {
+    unsafe {
+        (*MESSAGES).push_back(key, msg);
+
+        if let Some(ctx) = (*WAITING).remove(&key) {
+            CONTEXTS.push_back(ctx);
+        }
+    }
+    schedule();
+}
