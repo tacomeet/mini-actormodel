@@ -85,7 +85,7 @@ impl<T> MappedList<T> {
         }
     }
 
-    fn popo_front(&mut self, key: u64) -> Option<T> {
+    fn pop_front(&mut self, key: u64) -> Option<T> {
         if let Some(list) = self.map.get_mut(&key) {
             let val = list.pop_front();
             if list.is_empty() {
@@ -291,4 +291,35 @@ pub fn send(key: u64, msg: u64) {
         }
     }
     schedule();
+}
+
+pub fn recv() -> Option<u64> {
+    unsafe {
+        // get thread ID
+        let key = CONTEXTS.front().unwrap().id;
+
+        // if there is already message, return
+        if let Some(msg) = (*MESSAGES).pop_front(key) {
+            return Some(msg);
+        }
+
+        // if there is no other thread, deadlock
+        // todo: remove this
+        if CONTEXTS.len() == 1 {
+            panic!("deadlock");
+        }
+
+        let mut ctx = CONTEXTS.pop_front().unwrap();
+        let regs = ctx.get_regs_mut();
+        (*WAITING).insert(key, ctx);
+
+        if set_context(regs) == 0 {
+            let next = CONTEXTS.front().unwrap();
+            switch_context((**next).get_regs());
+        }
+
+        rm_unused_stack();
+
+        (*MESSAGES).pop_front(key)
+    }
 }
