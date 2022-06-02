@@ -1,4 +1,10 @@
-
+use nix::sys::mman::{mprotect, ProtFlags};
+use nix::unistd::sysconf;
+use rand;
+use std::alloc::{alloc, dealloc, Layout};
+use std::collections::{HashMap, HashSet, LinkedList};
+use std::ffi::c_void;
+use std::ptr;
 
 // 構造体の内部メモリ表現がC言語と同じであることを指定
 // レジスタの値を保存する構造体
@@ -26,6 +32,58 @@ impl Registers {
             rsp,
             // スレッド開始のエントリポイントとなる関数のアドレスを保存
             rdx: entry_point as u64,
+        }
+    }
+}
+
+extern "C" {
+    fn set_context(ctx: *mut Registers) -> u64;
+    fn switch_context(ctx: *const Registers) -> !;
+}
+
+// スレッド開始時に実行する関数の型
+type Entry = fn();
+
+// ページサイズ Linuxだと4KiB
+// const PAGE_SIZE: usize = 4 * 1024;
+const PAGE_SIZE: usize = sysconf(_SC_PAGESIZE) as usize;
+
+struct Context {
+    regs: Registers,
+    stack: *mut u8,
+    stack_layout: Layout,
+    entry: Entry,
+    // スレッドID
+    id: u64,
+}
+
+impl Context {
+    fn get_regs_mut(&mut self) -> &mut Registers {
+        &mut self.regs as *mut Registers
+    }
+
+    fn get_regs(&self) -> &Registers {
+        &self.regs as *const Registers
+    }
+
+    #[inline(never)]
+    fn new(func: Entry, stack_size: usize, id: u64) -> Self {
+        // スタック領域の確保
+        let layout = Layout::from_size_align(stack_size, PAGE_SIZE).unwrap();
+        let stack = unsafe { alloc(layout) };
+        
+        // スタック用のガードページ設定
+        unsafe { mprotect(stack as *mut c_void, PAGE_SIZE, ProtFlags::PROT_NONE).unwrap() };
+        // レジスタの初期化（stackは高アドレス -> 低アドレス）
+        let regs = Registers::new(stack as u64 + stack_size as u64);
+
+        // コンテキストの初期化とリターン
+        Context {
+            regs: regs,
+            stack: stack,
+            stack_layout: layout,
+            entry: func,
+            id: id,
         }
     }
 }
