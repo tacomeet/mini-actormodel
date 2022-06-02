@@ -1,6 +1,4 @@
 use nix::sys::mman::{mprotect, ProtFlags};
-use nix::unistd::sysconf;
-use rand;
 use std::alloc::{alloc, dealloc, Layout};
 use std::collections::{HashMap, HashSet, LinkedList};
 use std::ffi::c_void;
@@ -17,6 +15,12 @@ static mut CONTEXTS: LinkedList<Box<Context>> = LinkedList::new();
 
 // スレッドIDの集合
 static mut ID: *mut HashSet<u64> = ptr::null_mut();
+
+// message queue
+static mut MESSAGES: *mut MappedList<u64> = ptr::null_mut();
+
+// waiting thread set
+static mut WAITING: *mut HashMap<u64, Box<Context>> = ptr::null_mut();
 
 // 構造体の内部メモリ表現がC言語と同じであることを指定
 // レジスタの値を保存する構造体
@@ -57,8 +61,17 @@ extern "C" {
 type Entry = fn();
 
 // ページサイズ Linuxだと4KiB
-// const PAGE_SIZE: usize = 4 * 1024;
-const PAGE_SIZE: usize = sysconf(_SC_PAGESIZE) as usize;
+const PAGE_SIZE: usize = 4 * 1024;
+// const PAGE_SIZE: usize = sysconf() as usize;
+
+struct MappedList<T> {
+    map: HashMap<u64, LinkedList<T>>,
+}
+
+impl<T> MappedList<T> {
+
+}
+
 
 struct Context {
     regs: Registers,
@@ -70,11 +83,11 @@ struct Context {
 }
 
 impl Context {
-    fn get_regs_mut(&mut self) -> &mut Registers {
+    fn get_regs_mut(&mut self) -> *mut Registers {
         &mut self.regs as *mut Registers
     }
 
-    fn get_regs(&self) -> &Registers {
+    fn get_regs(&self) -> *const Registers {
         &self.regs as *const Registers
     }
 
@@ -91,11 +104,11 @@ impl Context {
 
         // コンテキストの初期化とリターン
         Context {
-            regs: regs,
-            stack: stack,
+            regs,
+            stack,
             stack_layout: layout,
             entry: func,
-            id: id,
+            id,
         }
     }
 }
@@ -179,7 +192,7 @@ pub extern "C" fn entry_point() {
     panic!("entry_point");
 }
 
-pub fn spwan_from_main(func: Entry, stack_size: usize) {
+pub fn spawn_from_main(func: Entry, stack_size: usize) {
     unsafe {
         // if already initialized, panic
         if let Some(_) = &CTX_MAIN {
@@ -190,8 +203,8 @@ pub fn spwan_from_main(func: Entry, stack_size: usize) {
         CTX_MAIN = Some(Box::new(Registers::new(0)));
         if let Some(ctx) = &mut CTX_MAIN {
             // initialize global variable
-            let mut msgs = MappedList::new();
-            MESSAGES = &mut msgs as *mut MappedList<u64>;
+            // let mut msgs = MappedList::new();
+            // MESSAGES = &mut msgs as *mut MappedList<u64>;
 
             let mut waiting = HashMap::new();
             WAITING = &mut waiting as *mut HashMap<u64, Box<Context>>;
@@ -217,7 +230,7 @@ pub fn spwan_from_main(func: Entry, stack_size: usize) {
             ID = ptr::null_mut();
 
             // guarantee lifetime
-            msgs.clear();
+            // msgs.clear();
             waiting.clear();
             ids.clear();
         }
