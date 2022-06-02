@@ -178,3 +178,48 @@ pub extern "C" fn entry_point() {
     }
     panic!("entry_point");
 }
+
+pub fn spwan_from_main(func: Entry, stack_size: usize) {
+    unsafe {
+        // if already initialized, panic
+        if let Some(_) = &CTX_MAIN {
+            panic!("spawn_from_main is called twice");
+        }
+
+        // create context for main function
+        CTX_MAIN = Some(Box::new(Registers::new(0)));
+        if let Some(ctx) = &mut CTX_MAIN {
+            // initialize global variable
+            let mut msgs = MappedList::new();
+            MESSAGES = &mut msgs as *mut MappedList<u64>;
+
+            let mut waiting = HashMap::new();
+            WAITING = &mut waiting as *mut HashMap<u64, Box<Context>>;
+
+            let mut ids = HashSet::new();
+            ID = &mut ids as *mut HashSet<u64>;
+
+            // save itsself
+            if set_context(&mut **ctx as *mut Registers) == 0 {
+                // create and execute first thread
+                CONTEXTS.push_back(Box::new(Context::new(func, stack_size, 0)));
+                let first = CONTEXTS.front().unwrap();
+                switch_context(first.get_regs());
+            }
+
+            // after all the threads are finished
+            rm_unused_stack();
+
+            CTX_MAIN = None;
+            CONTEXTS.clear();
+            MESSAGES = ptr::null_mut();
+            WAITING = ptr::null_mut();
+            ID = ptr::null_mut();
+
+            // guarantee lifetime
+            msgs.clear();
+            waiting.clear();
+            ids.clear();
+        }
+    }
+}
