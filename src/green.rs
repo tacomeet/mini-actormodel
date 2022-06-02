@@ -6,6 +6,18 @@ use std::collections::{HashMap, HashSet, LinkedList};
 use std::ffi::c_void;
 use std::ptr;
 
+// 全てのスレッドが終了時に戻ってくる先
+static mut CTX_MAIN: Option<Box<Registers>> = None;
+
+// 不要なスタック領域
+static mut UNUSED_STACK: (*mut u8, Layout) = (ptr::null_mut(), Layout::new::<u8>());
+
+// スレッドの実行キュー
+static mut CONTEXTS: LinkedList<Box<Context>> = LinkedList::new();
+
+// スレッドIDの集合
+static mut ID: *mut HashSet<u64> = ptr::null_mut();
+
 // 構造体の内部メモリ表現がC言語と同じであることを指定
 // レジスタの値を保存する構造体
 #[repr(C)]
