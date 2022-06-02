@@ -99,3 +99,16 @@ impl Context {
         }
     }
 }
+
+fn get_id() -> u64 {
+    loop {
+        let rnd = rand::random::<u64>();
+        unsafe {
+            // check if ID is already used
+            if !(*ID).contains(&rnd) {
+                (*ID).insert(rnd);
+                return rnd;
+            }
+        }
+    }
+}
