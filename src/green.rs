@@ -123,3 +123,28 @@ pub fn spawn(func: Entry, stack_size: usize) -> u64 {
         id
     }
 }
+
+pub fn schedule() {
+    unsafe {
+        // if there is only itself in the queue, return
+        if CONTEXTS.len() == 1 {
+            return;
+        }
+
+        // get current context
+        let mut ctx = CONTEXTS.pop_front().unwrap();
+        // get pointer to registers
+        let regs = ctx.get_regs_mut();
+        CONTEXTS.push_back(ctx);
+
+        // save current registers
+        if set_context(regs) == 0 {
+            // context switch to the new thread
+            let next = CONTEXTS.front().unwrap();
+            switch_context((**next).get_regs());
+        }
+
+        // remove unused stack
+        rm_unused_stack();
+    }
+}
