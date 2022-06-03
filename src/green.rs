@@ -232,8 +232,8 @@ pub fn spawn_from_main(func: Entry, stack_size: usize) {
         CTX_MAIN = Some(Box::new(Registers::new(0)));
         if let Some(ctx) = &mut CTX_MAIN {
             // initialize global variable
-            // let mut msgs = MappedList::new();
-            // MESSAGES = &mut msgs as *mut MappedList<u64>;
+            let mut msgs = MappedList::new();
+            MESSAGES = &mut msgs as *mut MappedList<u64>;
 
             let mut waiting = HashMap::new();
             WAITING = &mut waiting as *mut HashMap<u64, Box<Context>>;
@@ -259,7 +259,7 @@ pub fn spawn_from_main(func: Entry, stack_size: usize) {
             ID = ptr::null_mut();
 
             // guarantee lifetime
-            // msgs.clear();
+            msgs.clear();
             waiting.clear();
             ids.clear();
         }
