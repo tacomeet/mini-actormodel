@@ -224,7 +224,7 @@ pub extern "C" fn entry_point() {
 pub fn spawn_from_main(func: Entry, stack_size: usize) {
     unsafe {
         // if already initialized, panic
-        if let Some(_) = &CTX_MAIN {
+        if CTX_MAIN.is_some() {
             panic!("spawn_from_main is called twice");
         }
 
@@ -267,18 +267,19 @@ pub fn spawn_from_main(func: Entry, stack_size: usize) {
 }
 
 unsafe fn rm_unused_stack() {
-    if UNUSED_STACK.0 != ptr::null_mut() {
-        // remove guard page
-        mprotect(
-            UNUSED_STACK.0 as *mut c_void,
-            PAGE_SIZE,
-            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-        )
-        .unwrap();
-        dealloc(UNUSED_STACK.0, UNUSED_STACK.1);
-        // prevent double free
-        UNUSED_STACK = (ptr::null_mut(), Layout::new::<u8>());
+    if UNUSED_STACK.0.is_null() {
+        return;
     }
+    // remove guard page
+    mprotect(
+        UNUSED_STACK.0 as *mut c_void,
+        PAGE_SIZE,
+        ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+    )
+    .unwrap();
+    dealloc(UNUSED_STACK.0, UNUSED_STACK.1);
+    // prevent double free
+    UNUSED_STACK = (ptr::null_mut(), Layout::new::<u8>());
 }
 
 // key: thread ID
